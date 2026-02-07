@@ -37,7 +37,7 @@ class GO2RoughCfg( LeggedRobotCfg ):
         penalize_contacts_on = ["thigh", "calf"]
         terminate_after_contacts_on = ["base"]
         self_collisions = 1 # 1 to disable, 0 to enable...bitwise filter
-  
+
     class rewards( LeggedRobotCfg.rewards ):
         soft_dof_pos_limit = 0.9
         base_height_target = 0.25
@@ -52,4 +52,44 @@ class GO2RoughCfgPPO( LeggedRobotCfgPPO ):
         run_name = ''
         experiment_name = 'rough_go2'
 
-  
+
+class GO2FlatCfg( GO2RoughCfg ):
+    class env( GO2RoughCfg.env ):
+        num_observations = 48
+
+    class terrain( GO2RoughCfg.terrain ):
+        mesh_type = 'plane'
+        measure_heights = False
+
+    class asset( GO2RoughCfg.asset ):
+        self_collisions = 0 # 1 to disable, 0 to enable...bitwise filter
+
+    class rewards( GO2RoughCfg.rewards ):
+        max_contact_force = 350.
+        class scales( GO2RoughCfg.rewards.scales ):
+            orientation = -5.0
+            torques = -0.000025
+            feet_air_time = 2.
+            # feet_contact_forces = -0.01
+
+    class commands( GO2RoughCfg.commands ):
+        heading_command = False
+        resampling_time = 4.
+        class ranges( GO2RoughCfg.commands.ranges ):
+            ang_vel_yaw = [-1.5, 1.5]
+
+    class domain_rand( GO2RoughCfg.domain_rand ):
+        friction_range = [0., 1.5] # on ground planes the friction combination mode is averaging, i.e total friction = (foot_friction + 1.)/2.
+
+class GO2FlatCfgPPO( GO2RoughCfgPPO ):
+    class policy( GO2RoughCfgPPO.policy ):
+        actor_hidden_dims = [128, 64, 32]
+        critic_hidden_dims = [128, 64, 32]
+        activation = 'elu' # can be elu, relu, selu, crelu, lrelu, tanh, sigmoid
+
+    class algorithm( GO2RoughCfgPPO.algorithm ):
+        entropy_coef = 0.01
+
+    class runner( GO2RoughCfgPPO.runner ):
+        run_name = ''
+        experiment_name = 'flat_go2'
