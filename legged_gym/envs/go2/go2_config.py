@@ -55,6 +55,7 @@ class GO2RoughCfgPPO( LeggedRobotCfgPPO ):
 
 class GO2FlatCfg( GO2RoughCfg ):
     class env( GO2RoughCfg.env ):
+        num_envs = 4096
         num_observations = 48
 
     class terrain( GO2RoughCfg.terrain ):
