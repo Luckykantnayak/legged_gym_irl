@@ -1,18 +1,13 @@
-import sys
-import os
-
-LASER_RSL_RL_PATH = os.path.join(os.path.dirname(__file__), '../../../laser_rsl_rl')
-sys.path.insert(0, os.path.abspath(LASER_RSL_RL_PATH))
-
 import isaacgym
 from legged_gym.envs import *
 from legged_gym.utils import get_args, task_registry, Logger
 from legged_gym.utils.helpers import get_load_path, class_to_dict
 from legged_gym import LEGGED_GYM_ROOT_DIR
 
-from rsl_rl.runners import LeggedGymRunner
+from rsl_rl.runners import OffPolicyRunner
 import numpy as np
 import torch
+import os
 
 
 def play(args):
@@ -38,7 +33,7 @@ def play(args):
     print(f"Loading model from: {resume_path}")
 
     train_cfg_dict = class_to_dict(train_cfg)
-    runner = LeggedGymRunner(env, train_cfg_dict, log_dir=None, device=args.rl_device)
+    runner = OffPolicyRunner(env, train_cfg_dict, log_dir=None, device=args.rl_device)
     runner.load(resume_path)
     policy = runner.get_inference_policy(device=env.device)
 
@@ -48,10 +43,10 @@ def play(args):
     stop_state_log = 100
     stop_rew_log = env.max_episode_length + 1
 
-    obs, _ = env.get_observations()
+    obs = env.get_observations()
     for i in range(10 * int(env.max_episode_length)):
         actions = policy(obs.detach())
-        obs, rews, dones, infos = env.step(actions.detach())
+        obs, _, rews, dones, infos = env.step(actions.detach())
 
         if i < stop_state_log:
             logger.log_states(
