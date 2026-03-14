@@ -122,6 +122,8 @@ class GO2FlatCfgSAC( BaseConfig ):
         batch_count = 4   # gradient steps per data collection step
         # discount
         gamma = 0.99
+        # n-step returns (1 = standard TD(0), 3-5 improves long-horizon credit assignment)
+        n_step_returns = 3
         # misc
         gradient_clip = 1.0
 
