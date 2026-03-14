@@ -1,9 +1,4 @@
-import sys
 import os
-
-# Use laser_rsl_rl (which provides LeggedGymRunner + SAC) instead of the default rsl_rl
-LASER_RSL_RL_PATH = os.path.join(os.path.dirname(__file__), '../../../laser_rsl_rl')
-sys.path.insert(0, os.path.abspath(LASER_RSL_RL_PATH))
 
 import isaacgym  # must be imported before torch
 from legged_gym.envs import *
@@ -11,7 +6,7 @@ from legged_gym.utils import get_args, task_registry
 from legged_gym.utils.helpers import update_cfg_from_args, class_to_dict
 from legged_gym import LEGGED_GYM_ROOT_DIR
 
-from rsl_rl.runners import LeggedGymRunner
+from rsl_rl.runners import OffPolicyRunner
 from datetime import datetime
 
 
@@ -27,7 +22,7 @@ def train(args):
     env.reset()
 
     train_cfg_dict = class_to_dict(train_cfg)
-    runner = LeggedGymRunner(env, train_cfg_dict, log_dir, device=args.rl_device)
+    runner = OffPolicyRunner(env, train_cfg_dict, log_dir, device=args.rl_device)
 
     if train_cfg.runner.resume:
         from legged_gym.utils.helpers import get_load_path
