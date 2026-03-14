@@ -24,6 +24,8 @@ def train(args):
     log_root = os.path.join(LEGGED_GYM_ROOT_DIR, 'logs', train_cfg.runner.experiment_name)
     log_dir = os.path.join(log_root, datetime.now().strftime('%b%d_%H-%M-%S') + '_' + train_cfg.runner.run_name)
 
+    env.reset()
+
     train_cfg_dict = class_to_dict(train_cfg)
     runner = LeggedGymRunner(env, train_cfg_dict, log_dir, device=args.rl_device)
 
