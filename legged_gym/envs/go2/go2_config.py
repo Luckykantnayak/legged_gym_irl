@@ -140,3 +140,46 @@ class GO2FlatCfgSAC( BaseConfig ):
         load_run = -1
         checkpoint = -1
         resume_path = None
+
+
+class GO2FlatCfgDDPG( BaseConfig ):
+    seed = 1
+
+    class policy:
+        actor_hidden_dims = [128, 64, 32]
+        critic_hidden_dims = [128, 64, 32]
+        activation = 'elu'
+
+    class algorithm:
+        # learning rates
+        actor_lr = 1e-4
+        critic_lr = 1e-3
+        # exploration: Gaussian noise std added to deterministic actions in [-1, 1]
+        action_noise_std = 0.1
+        # replay buffer
+        storage_size = 1_000_000
+        storage_initial_size = 10_000  # transitions before first update
+        # mini-batch training
+        batch_size = 256
+        batch_count = 4   # gradient steps per data collection step
+        # discount & target network
+        gamma = 0.99
+        polyak = 0.995
+        # n-step returns (1 = standard TD(0), 3-5 improves long-horizon credit assignment)
+        n_step_returns = 3
+        # misc
+        gradient_clip = 1.0
+
+    class runner:
+        algorithm_class_name = 'DDPG'
+        num_steps_per_env = 1   # collect 1 env step per iteration (off-policy)
+        max_iterations = 15_000
+        # logging
+        save_interval = 500
+        experiment_name = 'flat_go2_ddpg'
+        run_name = ''
+        # resume
+        resume = False
+        load_run = -1
+        checkpoint = -1
+        resume_path = None
