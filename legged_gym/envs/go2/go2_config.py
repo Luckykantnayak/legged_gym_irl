@@ -151,10 +151,13 @@ class GO2FlatCfgDDPG( BaseConfig ):
         activation = 'elu'
 
     class algorithm:
+        # action bounds: DDPG applies tanh internally then scales to [action_min, action_max]
+        action_max = 1.0
+        action_min = -1.0
         # learning rates
         actor_lr = 1e-4
         critic_lr = 1e-3
-        # exploration: Gaussian noise std added to deterministic actions in [-1, 1]
+        # exploration: Gaussian noise std added to deterministic actions
         action_noise_std = 0.1
         # replay buffer
         storage_size = 1_000_000
