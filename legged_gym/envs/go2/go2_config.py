@@ -158,10 +158,10 @@ class GO2FlatCfgTD3( BaseConfig ):
         actor_lr = 1e-4
         critic_lr = 1e-3
         # exploration: Gaussian noise std added to deterministic actions
-        action_noise_std = 0.1
+        action_noise_std = 0.3
         # TD3-specific
         policy_delay = 2          # update actor every N critic steps
-        target_noise_std = 0.2   # std of smoothing noise on target actions
+        target_noise_std = 0.2   # std of smoothing noise on target actions (~0.5x action_noise_std)
         target_noise_clip = 0.5  # clip range for smoothing noise
         # replay buffer
         storage_size = 1_000_000
@@ -170,7 +170,7 @@ class GO2FlatCfgTD3( BaseConfig ):
         batch_size = 256
         batch_count = 4
         # discount & target network
-        gamma = 0.99
+        gamma = 0.999
         polyak = 0.995
         # n-step returns
         n_step_returns = 3
