@@ -107,9 +107,9 @@ class GO2FlatCfgSAC( BaseConfig ):
         use_layer_norm = True               # blog2: layer norm critical for stability
 
     class algorithm:
-        # action bounds: SAC applies tanh internally, env scales actions by action_scale=0.25
-        action_max = 1.0
-        action_min = -1.0
+        # action bounds: derived from PPO 95th percentile (2.5th=-2.89, 97.5th=2.47)
+        action_max = 3.0
+        action_min = -3.0
         # learning rates (blog2: lr=0.00045; 3e-4 is close enough)
         actor_lr = 3e-4
         critic_lr = 3e-4
