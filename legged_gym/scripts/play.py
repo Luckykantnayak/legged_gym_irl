@@ -120,8 +120,8 @@ def play(args):
     p2_5 = torch.quantile(all_actions, 0.025, dim=0)
     p97_5 = torch.quantile(all_actions, 0.975, dim=0)
     print("\n--- PPO Action Range (95th percentile, per joint) ---")
-    print(f"  2.5th  percentile: min={p2_5.min():.3f}  per-joint: {p2_5.numpy().round(3)}")
-    print(f"  97.5th percentile: max={p97_5.max():.3f}  per-joint: {p97_5.numpy().round(3)}")
+    print(f"  2.5th  percentile: min={p2_5.min():.3f}  per-joint: {p2_5.detach().numpy().round(3)}")
+    print(f"  97.5th percentile: max={p97_5.max():.3f}  per-joint: {p97_5.detach().numpy().round(3)}")
     print(f"  Suggested SAC action_max = {max(p97_5.abs().max(), p2_5.abs().max()):.2f}")
     print("------------------------------------------------------")
 
