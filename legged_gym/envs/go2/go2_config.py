@@ -142,6 +142,54 @@ class GO2FlatCfgSAC( BaseConfig ):
         resume_path = None
 
 
+class GO2FlatCfgTD3( BaseConfig ):
+    seed = 1
+
+    class policy:
+        actor_hidden_dims = [128, 64, 32]
+        critic_hidden_dims = [128, 64, 32]
+        activation = 'elu'
+
+    class algorithm:
+        # action bounds: TD3 applies tanh internally then scales to [action_min, action_max]
+        action_max = 1.0
+        action_min = -1.0
+        # learning rates
+        actor_lr = 1e-4
+        critic_lr = 1e-3
+        # exploration: Gaussian noise std added to deterministic actions
+        action_noise_std = 0.1
+        # TD3-specific
+        policy_delay = 2          # update actor every N critic steps
+        target_noise_std = 0.2   # std of smoothing noise on target actions
+        target_noise_clip = 0.5  # clip range for smoothing noise
+        # replay buffer
+        storage_size = 1_000_000
+        storage_initial_size = 10_000
+        # mini-batch training
+        batch_size = 256
+        batch_count = 4
+        # discount & target network
+        gamma = 0.99
+        polyak = 0.995
+        # n-step returns
+        n_step_returns = 3
+        # misc
+        gradient_clip = 1.0
+
+    class runner:
+        algorithm_class_name = 'TD3'
+        num_steps_per_env = 1
+        max_iterations = 15_000
+        save_interval = 500
+        experiment_name = 'flat_go2_td3'
+        run_name = ''
+        resume = False
+        load_run = -1
+        checkpoint = -1
+        resume_path = None
+
+
 class GO2FlatCfgDDPG( BaseConfig ):
     seed = 1
 
