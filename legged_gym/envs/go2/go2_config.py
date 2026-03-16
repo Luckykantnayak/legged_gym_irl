@@ -101,31 +101,31 @@ class GO2FlatCfgSAC( BaseConfig ):
     seed = 1
 
     class policy:
-        actor_hidden_dims = [512, 256, 128]  # blog: larger nets significantly help
+        actor_hidden_dims = [512, 256, 128]
         critic_hidden_dims = [512, 256, 128]
         activation = 'elu'
-        use_layer_norm = True               # blog2: layer norm critical for stability
+        use_layer_norm = True
 
     class algorithm:
-        # action bounds: derived from PPO 95th percentile (2.5th=-2.89, 97.5th=2.47)
-        action_max = 3.0
-        action_min = -3.0
-        # learning rates (blog2: lr=0.00045; 3e-4 is close enough)
+        # action bounds
+        action_max = 1.5
+        action_min = -1.5
+        # learning rates
         actor_lr = 3e-4
         critic_lr = 3e-4
-        alpha = 0.0095    # blog2: small initial alpha avoids destructive early exploration
-        alpha_lr = 3e-4
+        alpha = 0.2
+        alpha_lr = 3e-5
         # target network
-        polyak = 0.9977   # blog2: tau=0.0023 → much slower target updates
-        target_update_interval = 8  # blog2: policy_delay=8; update targets every N grad steps
+        polyak = 0.9977
+        target_update_interval = 8
         # replay buffer
         storage_size = 1_000_000
         storage_initial_size = 10_000  # transitions before first update
         # mini-batch training
-        batch_size = 512  # blog2: doubled from 256
-        batch_count = 128 # blog2: UTD=32/1024=0.03; 128/4096~0.03 matches
-        # discount — gamma=0.999 gives ~1000-step horizon matching episode length
-        gamma = 0.999
+        batch_size = 512
+        batch_count = 128
+        # discount
+        gamma = 0.984
         # n-step returns
         n_step_returns = 3
         # misc
