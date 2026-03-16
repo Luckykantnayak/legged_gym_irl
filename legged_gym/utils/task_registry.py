@@ -35,10 +35,7 @@ import torch
 import numpy as np
 
 from rsl_rl.env import VecEnv
-try:
-    from rsl_rl.runners import OnPolicyRunner
-except ImportError:
-    from rsl_rl.runners import LeggedGymRunner as OnPolicyRunner
+from rsl_rl.runners import OnPolicyRunner
 
 from legged_gym import LEGGED_GYM_ROOT_DIR, LEGGED_GYM_ENVS_DIR
 from .helpers import get_args, update_cfg_from_args, class_to_dict, get_load_path, set_seed, parse_sim_params
