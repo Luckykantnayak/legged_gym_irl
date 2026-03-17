@@ -123,7 +123,7 @@ class GO2FlatCfgSAC( BaseConfig ):
         storage_initial_size = 10_000  # transitions before first update
         # mini-batch training
         batch_size = 512
-        batch_count = 128
+        batch_count = 32
         # discount
         gamma = 0.984
         # n-step returns
