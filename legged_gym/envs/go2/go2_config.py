@@ -134,7 +134,7 @@ class GO2FlatCfgSAC( BaseConfig ):
     class runner:
         algorithm_class_name = 'SAC'
         num_steps_per_env = 1   # collect 1 env step per iteration (off-policy)
-        max_iterations = 15_000
+        max_iterations = 30_000
         # logging
         save_interval = 500
         experiment_name = 'flat_go2_sac'
