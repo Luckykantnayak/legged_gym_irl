@@ -26,6 +26,8 @@ _parser.add_argument("--cam_lookat", type=float, nargs=3, default=None,
                      help="Camera look-at target, e.g. --cam_lookat 0 0 0.35")
 _parser.add_argument("--num_envs",   type=int, default=50,
                      help="Number of environments to render (default: 50)")
+_parser.add_argument("--action_min", type=float, default=-1.0)
+_parser.add_argument("--action_max", type=float, default= 1.0)
 _extra_args, _remaining = _parser.parse_known_args()
 sys.argv = [sys.argv[0]] + _remaining
 
@@ -78,7 +80,7 @@ def play(args):
 
     obs = env.get_observations()
     for i in range(int(env.max_episode_length)):
-        actions = torch.rand(env.num_envs, env.num_actions, device=env.device) * 2.0 - 1.0
+        actions = torch.rand(env.num_envs, env.num_actions, device=env.device) * (extra.action_max - extra.action_min) + extra.action_min
         obs, _, rews, dones, infos = env.step(actions)
 
         # --- capture frame ---
