@@ -13,7 +13,7 @@ from legged_gym.utils import get_args, task_registry, Logger
 from legged_gym.utils.helpers import get_load_path, class_to_dict, update_cfg_from_args
 from legged_gym import LEGGED_GYM_ROOT_DIR
 
-from rsl_rl.runners import OffPolicyRunner
+from rsl_rl.runners import OffPolicyRunner, OnPolicyRunner
 
 # Parse recording args and strip them from sys.argv so get_args() / gymutil
 # (which calls parse_args() strictly) doesn't see unrecognised flags.
@@ -66,7 +66,11 @@ def play(args):
     print(f"Loading model from: {resume_path}")
 
     train_cfg_dict = class_to_dict(train_cfg)
-    runner = OffPolicyRunner(env, train_cfg_dict, log_dir=None, device=args.rl_device)
+    alg_name = train_cfg_dict["runner"].get("algorithm_class_name", "SAC")
+    if alg_name == "PPO":
+        runner = OnPolicyRunner(env, train_cfg_dict, log_dir=None, device=args.rl_device)
+    else:
+        runner = OffPolicyRunner(env, train_cfg_dict, log_dir=None, device=args.rl_device)
     runner.load(resume_path)
     policy = runner.get_inference_policy(device=env.device)
 
