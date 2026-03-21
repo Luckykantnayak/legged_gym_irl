@@ -10,7 +10,7 @@ import torch
 
 from legged_gym.envs import *
 from legged_gym.utils import get_args, task_registry, Logger
-from legged_gym.utils.helpers import get_load_path, class_to_dict
+from legged_gym.utils.helpers import get_load_path, class_to_dict, update_cfg_from_args
 from legged_gym import LEGGED_GYM_ROOT_DIR
 
 from rsl_rl.runners import OffPolicyRunner
@@ -44,6 +44,7 @@ def play(args):
         args.headless = False
 
     env_cfg, train_cfg = task_registry.get_cfgs(name=args.task)
+    env_cfg, train_cfg = update_cfg_from_args(env_cfg, train_cfg, args)
 
     env_cfg.env.num_envs = min(env_cfg.env.num_envs, rec_args.num_envs)
     env_cfg.terrain.num_rows = 5
