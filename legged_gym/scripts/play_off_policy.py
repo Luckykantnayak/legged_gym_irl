@@ -1,19 +1,51 @@
+import argparse
+import glob
+import os
+import sys
+import tempfile
+
 import isaacgym
+import numpy as np
+import torch
+
 from legged_gym.envs import *
 from legged_gym.utils import get_args, task_registry, Logger
 from legged_gym.utils.helpers import get_load_path, class_to_dict
 from legged_gym import LEGGED_GYM_ROOT_DIR
 
 from rsl_rl.runners import OffPolicyRunner
-import numpy as np
-import torch
-import os
+
+# Parse recording args and strip them from sys.argv so get_args() / gymutil
+# (which calls parse_args() strictly) doesn't see unrecognised flags.
+_rec_parser = argparse.ArgumentParser(add_help=False)
+_rec_parser.add_argument("--record", action="store_true")
+_rec_parser.add_argument("--video_dir",  type=str, default="videos/")
+_rec_parser.add_argument("--video_name", type=str, default="episode.mp4")
+_rec_parser.add_argument("--fps",        type=int, default=30)
+# viewer camera position and look-at target
+_rec_parser.add_argument("--cam_pos",    type=float, nargs=3, default=None,
+                         metavar=("X", "Y", "Z"),
+                         help="Camera position in world space, e.g. --cam_pos -2.5 0 1.35")
+_rec_parser.add_argument("--cam_lookat", type=float, nargs=3, default=None,
+                         metavar=("X", "Y", "Z"),
+                         help="Camera look-at target, e.g. --cam_lookat 0 0 0.35")
+_rec_parser.add_argument("--num_envs", type=int, default=50,
+                         help="Number of environments to render (default: 50)")
+_rec_args, _remaining = _rec_parser.parse_known_args()
+sys.argv = [sys.argv[0]] + _remaining  # hide recording flags from get_args()
 
 
 def play(args):
+    rec_args = _rec_args
+
+    # Recording uses the viewer (write_viewer_image_to_file).
+    # A display is required — run on DCV / with a monitor attached.
+    if rec_args.record:
+        args.headless = False
+
     env_cfg, train_cfg = task_registry.get_cfgs(name=args.task)
 
-    env_cfg.env.num_envs = min(env_cfg.env.num_envs, 50)
+    env_cfg.env.num_envs = min(env_cfg.env.num_envs, rec_args.num_envs)
     env_cfg.terrain.num_rows = 5
     env_cfg.terrain.num_cols = 5
     env_cfg.terrain.curriculum = False
@@ -43,10 +75,38 @@ def play(args):
     stop_state_log = 100
     stop_rew_log = env.max_episode_length + 1
 
+    # --- recording setup ---
+    frame_dir = None
+    frame_idx = 0
+    if rec_args.record:
+        if env.viewer is None:
+            print("WARNING: viewer is None — cannot record. Re-run without --headless.")
+        else:
+            frame_dir = tempfile.mkdtemp(prefix="legged_frames_")
+            print(f"Recording frames to tmp dir: {frame_dir}")
+            print(f"Output video: {os.path.join(rec_args.video_dir, rec_args.video_name)}")
+
+    # --- set viewer camera if position args were given ---
+    if env.viewer is not None and rec_args.cam_pos is not None:
+        from isaacgym import gymapi as _gymapi
+        cp = rec_args.cam_pos
+        lt = rec_args.cam_lookat if rec_args.cam_lookat is not None else [0.0, 0.0, 0.35]
+        env.gym.viewer_camera_look_at(
+            env.viewer, None,
+            _gymapi.Vec3(*cp),
+            _gymapi.Vec3(*lt),
+        )
+
     obs = env.get_observations()
-    for i in range(10 * int(env.max_episode_length)):
+    for i in range(1 * int(env.max_episode_length)):
         actions = policy(obs.detach())
         obs, _, rews, dones, infos = env.step(actions.detach())
+
+        # --- capture frame via viewer ---
+        if frame_dir is not None and env.viewer is not None:
+            frame_path = os.path.join(frame_dir, f"frame_{frame_idx:06d}.png")
+            env.gym.write_viewer_image_to_file(env.viewer, frame_path)
+            frame_idx += 1
 
         if i < stop_state_log:
             logger.log_states(
@@ -74,6 +134,23 @@ def play(args):
                     logger.log_rewards(infos["episode"], num_episodes)
         elif i == stop_rew_log:
             logger.print_rewards()
+
+    # --- stitch frames into video ---
+    if frame_dir is not None and frame_idx > 0:
+        try:
+            import imageio
+            png_files = sorted(glob.glob(os.path.join(frame_dir, "frame_*.png")))
+            frames = [imageio.imread(p) for p in png_files]
+            os.makedirs(rec_args.video_dir, exist_ok=True)
+            out_path = os.path.join(rec_args.video_dir, rec_args.video_name)
+            imageio.mimsave(out_path, frames, fps=rec_args.fps, macro_block_size=None)
+            print(f"Saved video: {out_path}  ({len(frames)} frames)")
+        except ImportError:
+            print("imageio not installed. Run: pip install imageio imageio-ffmpeg")
+        finally:
+            # clean up temp PNGs
+            import shutil
+            shutil.rmtree(frame_dir, ignore_errors=True)
 
 
 if __name__ == '__main__':
