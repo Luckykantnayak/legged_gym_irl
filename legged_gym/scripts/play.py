@@ -69,7 +69,6 @@ def play(args):
     joint_index = 1 # which joint is used for logging
     stop_state_log = 100 # number of steps before plotting states
     stop_rew_log = env.max_episode_length + 1 # number of steps before print average episode rewards
-    all_actions = []  # collect actions to compute percentile bounds for SAC
     camera_position = np.array(env_cfg.viewer.pos, dtype=np.float64)
     camera_vel = np.array([1., 1., 0.])
     camera_direction = np.array(env_cfg.viewer.lookat) - np.array(env_cfg.viewer.pos)
@@ -77,7 +76,6 @@ def play(args):
 
     for i in range(10*int(env.max_episode_length)):
         actions = policy(obs.detach())
-        all_actions.append(actions.cpu())
         obs, _, rews, dones, infos = env.step(actions.detach())
         if RECORD_FRAMES:
             if i % 2:
@@ -114,16 +112,6 @@ def play(args):
                     logger.log_rewards(infos["episode"], num_episodes)
         elif i==stop_rew_log:
             logger.print_rewards()
-
-    # Print action range statistics — use these to set action_max/action_min for SAC
-    all_actions = torch.cat(all_actions, dim=0)  # [T*N, num_actions]
-    p2_5 = torch.quantile(all_actions, 0.025, dim=0)
-    p97_5 = torch.quantile(all_actions, 0.975, dim=0)
-    print("\n--- PPO Action Range (95th percentile, per joint) ---")
-    print(f"  2.5th  percentile: min={p2_5.min():.3f}  per-joint: {p2_5.detach().numpy().round(3)}")
-    print(f"  97.5th percentile: max={p97_5.max():.3f}  per-joint: {p97_5.detach().numpy().round(3)}")
-    print(f"  Suggested SAC action_max = {max(p97_5.abs().max(), p2_5.abs().max()):.2f}")
-    print("------------------------------------------------------")
 
 if __name__ == '__main__':
     EXPORT_POLICY = True
