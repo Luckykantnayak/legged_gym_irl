@@ -124,6 +124,15 @@ class LeggedRobot(BaseTask):
         # compute observations, rewards, resets, ...
         self.check_termination()
         self.compute_reward()
+        # accumulate velocity tracking metrics
+        lin_vel_error = torch.sqrt(torch.sum(torch.square(self.commands[:, :2] - self.base_lin_vel[:, :2]), dim=1))
+        ang_vel_error = torch.abs(self.commands[:, 2] - self.base_ang_vel[:, 2])
+        self.tracking_error_lin_vel_sum += lin_vel_error
+        self.tracking_error_ang_vel_sum += ang_vel_error
+        self.tracking_step_count += 1
+        # success: lin vel error < 0.2 m/s AND ang vel error < 0.2 rad/s
+        self.tracking_success_count += ((lin_vel_error < 0.2) & (ang_vel_error < 0.2)).float()
+
         env_ids = self.reset_buf.nonzero(as_tuple=False).flatten()
         self.reset_idx(env_ids)
         self.compute_observations() # in some cases a simulation step might be required to refresh some obs (for example body positions)
@@ -178,6 +187,17 @@ class LeggedRobot(BaseTask):
         for key in self.episode_sums.keys():
             self.extras["episode"]['rew_' + key] = torch.mean(self.episode_sums[key][env_ids]) / self.max_episode_length_s
             self.episode_sums[key][env_ids] = 0.
+        # log velocity tracking metrics
+        step_counts = self.tracking_step_count[env_ids]
+        valid = step_counts > 0
+        if valid.any():
+            self.extras["episode"]["metric/lin_vel_tracking_error"] = torch.mean(self.tracking_error_lin_vel_sum[env_ids[valid]] / step_counts[valid])
+            self.extras["episode"]["metric/ang_vel_tracking_error"] = torch.mean(self.tracking_error_ang_vel_sum[env_ids[valid]] / step_counts[valid])
+            self.extras["episode"]["metric/vel_tracking_success_rate"] = torch.mean(self.tracking_success_count[env_ids[valid]] / step_counts[valid])
+        self.tracking_error_lin_vel_sum[env_ids] = 0.
+        self.tracking_error_ang_vel_sum[env_ids] = 0.
+        self.tracking_success_count[env_ids] = 0.
+        self.tracking_step_count[env_ids] = 0.
         # log additional curriculum info
         if self.cfg.terrain.curriculum:
             self.extras["episode"]["terrain_level"] = torch.mean(self.terrain_levels.float())
@@ -521,6 +541,12 @@ class LeggedRobot(BaseTask):
         if self.cfg.terrain.measure_heights:
             self.height_points = self._init_height_points()
         self.measured_heights = 0
+
+        # velocity tracking metrics
+        self.tracking_error_lin_vel_sum = torch.zeros(self.num_envs, dtype=torch.float, device=self.device, requires_grad=False)
+        self.tracking_error_ang_vel_sum = torch.zeros(self.num_envs, dtype=torch.float, device=self.device, requires_grad=False)
+        self.tracking_success_count = torch.zeros(self.num_envs, dtype=torch.float, device=self.device, requires_grad=False)
+        self.tracking_step_count = torch.zeros(self.num_envs, dtype=torch.float, device=self.device, requires_grad=False)
 
         # joint positions offsets and PD gains
         self.default_dof_pos = torch.zeros(self.num_dof, dtype=torch.float, device=self.device, requires_grad=False)

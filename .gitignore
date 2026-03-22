@@ -7,6 +7,8 @@
 node_modules/
 dist/
 
+/rsl_rl
+CLAUDE.md
 # Compiled Java class files
 *.class
 
