@@ -1,4 +1,5 @@
 from legged_gym.envs.base.legged_robot_config import LeggedRobotCfg, LeggedRobotCfgPPO
+from legged_gym.envs.base.base_config import BaseConfig
 
 class GO2RoughCfg( LeggedRobotCfg ):
     class init_state( LeggedRobotCfg.init_state ):
@@ -94,3 +95,146 @@ class GO2FlatCfgPPO( GO2RoughCfgPPO ):
     class runner( GO2RoughCfgPPO.runner ):
         run_name = ''
         experiment_name = 'flat_go2'
+
+
+class GO2FlatCfgSAC( BaseConfig ):
+    seed = 1
+
+    class policy:
+        actor_hidden_dims = [512, 256, 128]
+        critic_hidden_dims = [512, 256, 128]
+        activation = 'elu'
+        use_layer_norm = True
+
+    class algorithm:
+        # action bounds
+        action_max = 1.5
+        action_min = -1.5
+        # learning rates
+        actor_lr = 3e-4
+        critic_lr = 3e-4
+        alpha = 0.2
+        alpha_lr = 3e-5
+        # target network
+        polyak = 0.9977
+        target_update_interval = 8
+        # replay buffer
+        storage_size = 1_000_000
+        storage_initial_size = 10_000  # transitions before first update
+        # mini-batch training
+        batch_size = 512
+        batch_count = 32
+        # discount
+        gamma = 0.984
+        # n-step returns
+        n_step_returns = 3
+        # misc
+        gradient_clip = 1.0
+
+    class runner:
+        algorithm_class_name = 'SAC'
+        num_steps_per_env = 1   # collect 1 env step per iteration (off-policy)
+        max_iterations = 30_000
+        # logging
+        save_interval = 500
+        experiment_name = 'flat_go2_sac'
+        run_name = ''
+        # resume
+        resume = False
+        load_run = -1
+        checkpoint = -1
+        resume_path = None
+
+
+class GO2FlatCfgTD3( BaseConfig ):
+    seed = 1
+
+    class policy:
+        actor_hidden_dims = [128, 64, 32]
+        critic_hidden_dims = [128, 64, 32]
+        activation = 'elu'
+
+    class algorithm:
+        # action bounds: TD3 applies tanh internally then scales to [action_min, action_max]
+        action_max = 1.0
+        action_min = -1.0
+        # learning rates
+        actor_lr = 1e-4
+        critic_lr = 1e-3
+        # exploration: Gaussian noise std added to deterministic actions
+        action_noise_std = 0.3
+        # TD3-specific
+        policy_delay = 2          # update actor every N critic steps
+        target_noise_std = 0.2   # std of smoothing noise on target actions (~0.5x action_noise_std)
+        target_noise_clip = 0.5  # clip range for smoothing noise
+        # replay buffer
+        storage_size = 1_000_000
+        storage_initial_size = 10_000
+        # mini-batch training
+        batch_size = 256
+        batch_count = 4
+        # discount & target network
+        gamma = 0.999
+        polyak = 0.995
+        # n-step returns
+        n_step_returns = 3
+        # misc
+        gradient_clip = 1.0
+
+    class runner:
+        algorithm_class_name = 'TD3'
+        num_steps_per_env = 1
+        max_iterations = 15_000
+        save_interval = 500
+        experiment_name = 'flat_go2_td3'
+        run_name = ''
+        resume = False
+        load_run = -1
+        checkpoint = -1
+        resume_path = None
+
+
+class GO2FlatCfgDDPG( BaseConfig ):
+    seed = 1
+
+    class policy:
+        actor_hidden_dims = [128, 64, 32]
+        critic_hidden_dims = [128, 64, 32]
+        activation = 'elu'
+
+    class algorithm:
+        # action bounds: DDPG applies tanh internally then scales to [action_min, action_max]
+        action_max = 1.0
+        action_min = -1.0
+        # learning rates
+        actor_lr = 1e-4
+        critic_lr = 1e-3
+        # exploration: Gaussian noise std added to deterministic actions
+        action_noise_std = 0.1
+        # replay buffer
+        storage_size = 1_000_000
+        storage_initial_size = 10_000  # transitions before first update
+        # mini-batch training
+        batch_size = 256
+        batch_count = 4   # gradient steps per data collection step
+        # discount & target network
+        gamma = 0.99
+        polyak = 0.995
+        # n-step returns (1 = standard TD(0), 3-5 improves long-horizon credit assignment)
+        n_step_returns = 3
+        # misc
+        gradient_clip = 1.0
+
+    class runner:
+        algorithm_class_name = 'DDPG'
+        num_steps_per_env = 1   # collect 1 env step per iteration (off-policy)
+        max_iterations = 15_000
+        # logging
+        save_interval = 500
+        experiment_name = 'flat_go2_ddpg'
+        run_name = ''
+        # resume
+        resume = False
+        load_run = -1
+        checkpoint = -1
+        resume_path = None
