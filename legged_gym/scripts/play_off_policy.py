@@ -3,8 +3,10 @@ import glob
 import os
 import sys
 import tempfile
+from collections import defaultdict
 
 import isaacgym
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
@@ -80,6 +82,11 @@ def play(args):
     stop_state_log = 100
     stop_rew_log = env.max_episode_length + 1
 
+    vel_tracking_log = defaultdict(list)
+    eval_done = False
+    total_steps = 0
+    success_steps = 0
+
     # --- recording setup ---
     frame_dir = None
     frame_idx = 0
@@ -140,6 +147,37 @@ def play(args):
         elif i == stop_rew_log:
             logger.print_rewards()
 
+        # velocity tracking log (single robot, first episode)
+        if i < int(env.max_episode_length):
+            vel_tracking_log['cmd_x'].append(env.commands[robot_index, 0].item())
+            vel_tracking_log['cmd_y'].append(env.commands[robot_index, 1].item())
+            vel_tracking_log['cmd_yaw'].append(env.commands[robot_index, 2].item())
+            vel_tracking_log['vel_x'].append(env.base_lin_vel[robot_index, 0].item())
+            vel_tracking_log['vel_y'].append(env.base_lin_vel[robot_index, 1].item())
+            vel_tracking_log['vel_yaw'].append(env.base_ang_vel[robot_index, 2].item())
+
+        # success rate (all envs, first episode)
+        if not eval_done:
+            cmd_xy = env.commands[:, :2]
+            vel_xy = env.base_lin_vel[:, :2]
+            lin_err = torch.sqrt(torch.sum(torch.square(cmd_xy - vel_xy), dim=1))
+            ang_err = torch.abs(env.commands[:, 2] - env.base_ang_vel[:, 2])
+            success_steps += ((lin_err < 0.2) & (ang_err < 0.2)).sum().item()
+            total_steps += env.num_envs
+            if i + 1 >= int(env.max_episode_length):
+                eval_done = True
+
+    # --- success rate summary ---
+    success_rate = success_steps / total_steps if total_steps > 0 else 0.0
+    print(f"\n===== Velocity Tracking Evaluation (1 episode, {env.num_envs} envs) =====")
+    print(f"Success rate (lin_err<0.2 m/s & ang_err<0.2 rad/s): {success_rate:.2%}")
+    print(f"Total env-steps evaluated: {total_steps}")
+    print(f"==========================================================\n")
+
+    # --- velocity tracking plot ---
+    fig_path = os.path.join(LEGGED_GYM_ROOT_DIR, 'logs', train_cfg.runner.experiment_name, 'vel_tracking.png')
+    _plot_velocity_tracking(vel_tracking_log, env.dt, robot_index, save_path=fig_path)
+
     # --- stitch frames into video ---
     if frame_dir is not None and frame_idx > 0:
         try:
@@ -156,6 +194,43 @@ def play(args):
             # clean up temp PNGs
             import shutil
             shutil.rmtree(frame_dir, ignore_errors=True)
+
+
+def _plot_velocity_tracking(log, dt, robot_index, save_path=None):
+    """Plot commanded vs actual velocities for a single robot over one episode."""
+    n = len(log['cmd_x'])
+    if n == 0:
+        return
+    time = np.arange(n) * dt
+
+    fig, axs = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
+
+    axs[0].plot(time, log['vel_x'], label='actual', alpha=0.8)
+    axs[0].plot(time, log['cmd_x'], label='commanded', linestyle='--', alpha=0.8)
+    axs[0].set_ylabel('Lin vel x [m/s]')
+    axs[0].set_title(f'Velocity Tracking (robot {robot_index}, 1 episode)')
+    axs[0].legend()
+    axs[0].grid(True, alpha=0.3)
+
+    axs[1].plot(time, log['vel_y'], label='actual', alpha=0.8)
+    axs[1].plot(time, log['cmd_y'], label='commanded', linestyle='--', alpha=0.8)
+    axs[1].set_ylabel('Lin vel y [m/s]')
+    axs[1].legend()
+    axs[1].grid(True, alpha=0.3)
+
+    axs[2].plot(time, log['vel_yaw'], label='actual', alpha=0.8)
+    axs[2].plot(time, log['cmd_yaw'], label='commanded', linestyle='--', alpha=0.8)
+    axs[2].set_ylabel('Ang vel yaw [rad/s]')
+    axs[2].set_xlabel('Time [s]')
+    axs[2].legend()
+    axs[2].grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    if save_path is not None:
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        plt.savefig(save_path, dpi=150)
+        print(f"Saved velocity tracking plot: {save_path}")
+    plt.show()
 
 
 if __name__ == '__main__':

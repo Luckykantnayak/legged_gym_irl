@@ -151,9 +151,10 @@ def play(args):
     print(f"==========================================================\n")
 
     # plot velocity tracking for single robot
-    _plot_velocity_tracking(vel_tracking_log, env.dt, robot_index)
+    fig_path = os.path.join(LEGGED_GYM_ROOT_DIR, 'logs', train_cfg.runner.experiment_name, 'vel_tracking.png')
+    _plot_velocity_tracking(vel_tracking_log, env.dt, robot_index, save_path=fig_path)
 
-def _plot_velocity_tracking(log, dt, robot_index):
+def _plot_velocity_tracking(log, dt, robot_index, save_path=None):
     """Plot commanded vs actual velocities for a single robot over one episode."""
     n = len(log['cmd_x'])
     time = np.arange(n) * dt
@@ -181,6 +182,10 @@ def _plot_velocity_tracking(log, dt, robot_index):
     axs[2].grid(True, alpha=0.3)
 
     plt.tight_layout()
+    if save_path is not None:
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        plt.savefig(save_path, dpi=150)
+        print(f"Saved velocity tracking plot: {save_path}")
     plt.show()
 
 
