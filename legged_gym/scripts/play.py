@@ -151,7 +151,7 @@ def play(args):
     print(f"==========================================================\n")
 
     # plot velocity tracking for single robot
-    fig_path = os.path.join(LEGGED_GYM_ROOT_DIR, 'logs', train_cfg.runner.experiment_name, 'vel_tracking.png')
+    fig_path = os.path.join(LEGGED_GYM_ROOT_DIR, 'logs', train_cfg.runner.experiment_name, 'vel_tracking.pdf')
     _plot_velocity_tracking(vel_tracking_log, env.dt, robot_index, save_path=fig_path)
 
 def _plot_velocity_tracking(log, dt, robot_index, save_path=None):
@@ -184,7 +184,7 @@ def _plot_velocity_tracking(log, dt, robot_index, save_path=None):
     plt.tight_layout()
     if save_path is not None:
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        plt.savefig(save_path, dpi=150)
+        plt.savefig(save_path)
         print(f"Saved velocity tracking plot: {save_path}")
     plt.show()
 
