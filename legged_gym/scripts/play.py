@@ -29,7 +29,9 @@
 # Copyright (c) 2021 ETH Zurich, Nikita Rudin
 
 from legged_gym import LEGGED_GYM_ROOT_DIR
+import argparse
 import os
+import sys
 
 import isaacgym
 from legged_gym.envs import *
@@ -39,6 +41,12 @@ import numpy as np
 import torch
 import matplotlib.pyplot as plt
 from collections import defaultdict
+
+_parser = argparse.ArgumentParser(add_help=False)
+_parser.add_argument("--cmd_seed", type=int, default=None,
+                     help="Fix RNG seed before rollout so command resampling is identical across runs")
+_extra_args, _remaining = _parser.parse_known_args()
+sys.argv = [sys.argv[0]] + _remaining
 
 
 def play(args):
@@ -55,6 +63,13 @@ def play(args):
     # prepare environment
     env, _ = task_registry.make_env(name=args.task, args=args, env_cfg=env_cfg)
     obs = env.get_observations()
+
+    # fix command seed so resampling is identical across runs
+    if _extra_args.cmd_seed is not None:
+        torch.manual_seed(_extra_args.cmd_seed)
+        np.random.seed(_extra_args.cmd_seed)
+        env._resample_commands(torch.arange(env.num_envs, device=env.device))
+
     # load policy
     train_cfg.runner.resume = True
     ppo_runner, train_cfg = task_registry.make_alg_runner(env=env, name=args.task, args=args, train_cfg=train_cfg)

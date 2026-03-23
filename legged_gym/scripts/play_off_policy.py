@@ -33,6 +33,8 @@ _rec_parser.add_argument("--cam_lookat", type=float, nargs=3, default=None,
                          help="Camera look-at target, e.g. --cam_lookat 0 0 0.35")
 _rec_parser.add_argument("--num_envs", type=int, default=50,
                          help="Number of environments to render (default: 50)")
+_rec_parser.add_argument("--cmd_seed", type=int, default=None,
+                         help="Fix RNG seed before rollout so command resampling is identical across runs")
 _rec_args, _remaining = _rec_parser.parse_known_args()
 sys.argv = [sys.argv[0]] + _remaining  # hide recording flags from get_args()
 
@@ -97,6 +99,12 @@ def play(args):
             frame_dir = tempfile.mkdtemp(prefix="legged_frames_")
             print(f"Recording frames to tmp dir: {frame_dir}")
             print(f"Output video: {os.path.join(rec_args.video_dir, rec_args.video_name)}")
+
+    # --- fix command RNG seed if requested ---
+    if rec_args.cmd_seed is not None:
+        torch.manual_seed(rec_args.cmd_seed)
+        np.random.seed(rec_args.cmd_seed)
+        env._resample_commands(torch.arange(env.num_envs, device=env.device))
 
     # --- set viewer camera if position args were given ---
     if env.viewer is not None and rec_args.cam_pos is not None:
