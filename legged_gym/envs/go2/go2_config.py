@@ -117,13 +117,13 @@ class GO2FlatCfgPPOTransformer( GO2FlatCfgPPO ):
         critic_hidden_dims = [128, 64, 32]
         activation = 'elu'
         # ActorCriticTransformer params:
-        transformer_hidden_size = 128
-        transformer_block_count = 4
+        transformer_hidden_size = 64
+        transformer_block_count = 2
         transformer_head_count = 4
-        transformer_context_length = 16  # rolling context carried across rollout steps
+        transformer_context_length = 8   # rolling context carried across rollout steps
         # Position-embedding capacity — must be >= context_length + num_steps_per_env so that
         # the PPO update can process a whole rollout sequence in one forward pass.
-        transformer_max_seq_length = 64
+        transformer_max_seq_length = 32
 
     class runner( GO2FlatCfgPPO.runner ):
         policy_class_name = 'ActorCriticTransformer'
