@@ -113,13 +113,15 @@ class GO2FlatCfgPPOHistory( GO2FlatCfgPPO ):
 
 class GO2FlatCfgPPOTransformer( GO2FlatCfgPPO ):
     class policy( GO2FlatCfgPPO.policy ):
-        actor_hidden_dims = [128, 64, 32]
-        critic_hidden_dims = [128, 64, 32]
+        # Shallow MLP head — the compact transformer already handles feature mixing,
+        # and total params are aligned with the vanilla PPO baseline.
+        actor_hidden_dims = [64, 32]
+        critic_hidden_dims = [64, 32]
         activation = 'elu'
-        # ActorCriticTransformer params:
-        transformer_hidden_size = 64
-        transformer_block_count = 2
-        transformer_head_count = 4
+        # ActorCriticTransformer params (compact: no FF inside blocks, no output head):
+        transformer_hidden_size = 48
+        transformer_block_count = 1
+        transformer_head_count = 2
         transformer_context_length = 8   # rolling context carried across rollout steps
 
     class runner( GO2FlatCfgPPO.runner ):
