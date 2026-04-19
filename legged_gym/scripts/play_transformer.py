@@ -226,12 +226,19 @@ def play(args):
             print("[play_transformer] imageio not installed. Install with: pip install imageio imageio-ffmpeg")
 
     if attn_log:
-        _plot_attention(attn_log, env.dt, _extra_args.attention_env)
+        os.makedirs(_extra_args.video_dir, exist_ok=True)
+        stem = os.path.splitext(_extra_args.video_name)[0]
+        npz_path = os.path.join(_extra_args.video_dir, f"{stem}_attn.npz")
+        png_path = os.path.join(_extra_args.video_dir, f"{stem}_attn.png")
+        data = np.stack(attn_log, axis=0)  # (T, heads, S)
+        np.savez(npz_path, attn=data, dt=env.dt, env_index=_extra_args.attention_env)
+        print(f"[play_transformer] saved attention log: {npz_path} shape={data.shape}")
+        _plot_attention(attn_log, env.dt, _extra_args.attention_env, save_path=png_path)
 
     _plot_velocity_tracking(vel_tracking_log, env.dt, robot_index)
 
 
-def _plot_attention(attn_rows, dt, env_index):
+def _plot_attention(attn_rows, dt, env_index, save_path=None):
     """Plot (T × context_position) attention heatmap averaged over heads, plus per-head panels.
 
     attn_rows: list of (heads, S) arrays where S = context_length + 1. Column index maps
@@ -261,6 +268,9 @@ def _plot_attention(attn_rows, dt, env_index):
         _imshow(axs[h + 1], data[:, h, :], f'head {h}')
 
     fig.colorbar(im, ax=axs, shrink=0.8, label='attention weight')
+    if save_path is not None:
+        fig.savefig(save_path, dpi=150, bbox_inches='tight')
+        print(f"[play_transformer] saved attention heatmap: {save_path}")
     plt.show()
 
 
