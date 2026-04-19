@@ -5,6 +5,7 @@ import argparse
 from collections import defaultdict
 
 import isaacgym
+from isaacgym import gymapi
 from legged_gym.envs import *
 from legged_gym.utils import get_args, export_policy_as_jit, task_registry, Logger
 
@@ -19,6 +20,17 @@ _parser.add_argument("--cmd_seed", type=int, default=None,
 _parser.add_argument("--cmd_seq", type=float, nargs="+", default=None,
                      help="Hardcoded command sequence as flat list of floats (groups of 3: vx vy vyaw). "
                           "E.g. --cmd_seq 0.5 0.0 0.0  1.0 0.0 0.5")
+_parser.add_argument("--record", action="store_true",
+                     help="Record a video of the rollout via an Isaac Gym camera sensor.")
+_parser.add_argument("--video_dir", type=str, default="videos/")
+_parser.add_argument("--video_name", type=str, default="episode.mp4")
+_parser.add_argument("--fps", type=int, default=30)
+_parser.add_argument("--video_steps", type=int, default=-1,
+                     help="Number of rollout steps to record; -1 uses env.max_episode_length.")
+_parser.add_argument("--cam_pos", type=float, nargs=3, default=None, metavar=("X", "Y", "Z"),
+                     help="Override viewer/recording camera position in world coords.")
+_parser.add_argument("--cam_lookat", type=float, nargs=3, default=None, metavar=("X", "Y", "Z"),
+                     help="Override viewer/recording camera look-at target in world coords.")
 _extra_args, _remaining = _parser.parse_known_args()
 sys.argv = [sys.argv[0]] + _remaining
 
@@ -33,8 +45,17 @@ def play(args):
     env_cfg.domain_rand.randomize_friction = False
     env_cfg.domain_rand.push_robots = False
 
+    # Apply cam overrides before env construction so the viewer is created at the right pose.
+    if _extra_args.cam_pos is not None:
+        env_cfg.viewer.pos = list(_extra_args.cam_pos)
+    if _extra_args.cam_lookat is not None:
+        env_cfg.viewer.lookat = list(_extra_args.cam_lookat)
+
     env, _ = task_registry.make_env(name=args.task, args=args, env_cfg=env_cfg)
     obs = env.get_observations()
+
+    if (_extra_args.cam_pos is not None or _extra_args.cam_lookat is not None) and not args.headless:
+        env.set_camera(env_cfg.viewer.pos, env_cfg.viewer.lookat)
 
     if _extra_args.cmd_seq is not None:
         raw = _extra_args.cmd_seq
@@ -83,6 +104,25 @@ def play(args):
     total_steps = 0
     success_steps = 0
 
+    # Optional video recording via a static camera sensor attached to env 0.
+    record_cam = None
+    record_frames = []
+    record_width = record_height = 0
+    record_limit = int(env.max_episode_length) if _extra_args.video_steps < 0 else _extra_args.video_steps
+    if _extra_args.record:
+        cam_props = gymapi.CameraProperties()
+        cam_props.width = 1280
+        cam_props.height = 720
+        cam_props.enable_tensors = False
+        record_cam = env.gym.create_camera_sensor(env.envs[0], cam_props)
+        record_width, record_height = cam_props.width, cam_props.height
+        cam_pos = _extra_args.cam_pos if _extra_args.cam_pos is not None else env_cfg.viewer.pos
+        cam_lookat = _extra_args.cam_lookat if _extra_args.cam_lookat is not None else env_cfg.viewer.lookat
+        env.gym.set_camera_location(
+            record_cam, env.envs[0],
+            gymapi.Vec3(*cam_pos), gymapi.Vec3(*cam_lookat),
+        )
+
     for i in range(10 * int(env.max_episode_length)):
         actions = policy(obs.detach())
         obs, _, rews, dones, infos = env.step(actions.detach())
@@ -97,6 +137,13 @@ def play(args):
         if MOVE_CAMERA:
             camera_position += camera_vel * env.dt
             env.set_camera(camera_position, camera_position + camera_direction)
+
+        if record_cam is not None and i < record_limit:
+            env.gym.step_graphics(env.sim)
+            env.gym.render_all_camera_sensors(env.sim)
+            img = env.gym.get_camera_image(env.sim, env.envs[0], record_cam, gymapi.IMAGE_COLOR)
+            img = np.frombuffer(img, dtype=np.uint8).reshape(record_height, record_width, 4)[..., :3]
+            record_frames.append(img)
 
         if i < int(env.max_episode_length):
             vel_tracking_log['cmd_x'].append(env.commands[robot_index, 0].item())
@@ -149,6 +196,16 @@ def play(args):
     print(f"Total env-steps evaluated: {total_steps}")
     print(f"==========================================================\n")
 
+    if record_frames:
+        os.makedirs(_extra_args.video_dir, exist_ok=True)
+        out_path = os.path.join(_extra_args.video_dir, _extra_args.video_name)
+        try:
+            import imageio
+            imageio.mimsave(out_path, record_frames, fps=_extra_args.fps, macro_block_size=None)
+            print(f"[play_transformer] saved video: {out_path} ({len(record_frames)} frames)")
+        except ImportError:
+            print("[play_transformer] imageio not installed. Install with: pip install imageio imageio-ffmpeg")
+
     _plot_velocity_tracking(vel_tracking_log, env.dt, robot_index)
 
 
@@ -183,7 +240,8 @@ def _plot_velocity_tracking(log, dt, robot_index):
 
 
 if __name__ == '__main__':
-    EXPORT_POLICY = True
+    # JIT export only supports LSTM memory today; transformer memory has no `rnn` attribute.
+    EXPORT_POLICY = False
     RECORD_FRAMES = False
     MOVE_CAMERA = False
     args = get_args()
