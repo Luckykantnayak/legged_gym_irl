@@ -135,7 +135,7 @@ def play(args):
             gymapi.Vec3(*cam_pos), gymapi.Vec3(*cam_lookat),
         )
 
-    for i in range(10 * int(env.max_episode_length)):
+    for i in range(int(env.max_episode_length)):
         actions = policy(obs.detach())
 
         # Capture right after the forward pass; the next policy() call will overwrite last_attn.
