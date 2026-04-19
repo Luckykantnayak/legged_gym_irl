@@ -31,6 +31,11 @@ _parser.add_argument("--cam_pos", type=float, nargs=3, default=None, metavar=("X
                      help="Override viewer/recording camera position in world coords.")
 _parser.add_argument("--cam_lookat", type=float, nargs=3, default=None, metavar=("X", "Y", "Z"),
                      help="Override viewer/recording camera look-at target in world coords.")
+_parser.add_argument("--log_attention", action="store_true",
+                     help="Record per-step attention weights (env 0, last transformer block) and plot a "
+                          "time × context-position heatmap averaged over heads.")
+_parser.add_argument("--attention_env", type=int, default=0,
+                     help="Env index whose attention is logged when --log_attention is set.")
 _extra_args, _remaining = _parser.parse_known_args()
 sys.argv = [sys.argv[0]] + _remaining
 
@@ -104,6 +109,13 @@ def play(args):
     total_steps = 0
     success_steps = 0
 
+    # Attention logging: grab the actor transformer's last block each step. Each `last_attn`
+    # is (B, heads, S, S) with S = context_length + 1 at rollout; we keep the final query row.
+    attn_log = []
+    attn_block = None
+    if _extra_args.log_attention:
+        attn_block = actor_critic.memory_a.transformer.blocks[-1].sa
+
     # Optional video recording via a static camera sensor attached to env 0.
     record_cam = None
     record_frames = []
@@ -125,6 +137,13 @@ def play(args):
 
     for i in range(10 * int(env.max_episode_length)):
         actions = policy(obs.detach())
+
+        # Capture right after the forward pass; the next policy() call will overwrite last_attn.
+        if attn_block is not None and attn_block.last_attn is not None and i < int(env.max_episode_length):
+            # last_attn: (B, heads, S, S). Row -1 = current query's attention over all keys.
+            row = attn_block.last_attn[_extra_args.attention_env, :, -1, :].cpu().numpy()
+            attn_log.append(row)
+
         obs, _, rews, dones, infos = env.step(actions.detach())
         # Transformer carries a rolling context per env; zero it for envs that just terminated.
         actor_critic.reset(dones)
@@ -206,7 +225,43 @@ def play(args):
         except ImportError:
             print("[play_transformer] imageio not installed. Install with: pip install imageio imageio-ffmpeg")
 
+    if attn_log:
+        _plot_attention(attn_log, env.dt, _extra_args.attention_env)
+
     _plot_velocity_tracking(vel_tracking_log, env.dt, robot_index)
+
+
+def _plot_attention(attn_rows, dt, env_index):
+    """Plot (T × context_position) attention heatmap averaged over heads, plus per-head panels.
+
+    attn_rows: list of (heads, S) arrays where S = context_length + 1. Column index maps
+    from oldest context token (0) to current token (S-1).
+    """
+    data = np.stack(attn_rows, axis=0)  # (T, heads, S)
+    T, heads, S = data.shape
+    time = np.arange(T) * dt
+    # Column labels: -(S-1) for oldest context, 0 for current token.
+    offsets = np.arange(S) - (S - 1)
+
+    fig, axs = plt.subplots(1, heads + 1, figsize=(4 * (heads + 1), 4), sharey=True)
+    if heads + 1 == 1:
+        axs = [axs]
+
+    def _imshow(ax, mat, title):
+        im = ax.imshow(mat.T, aspect='auto', origin='lower',
+                       extent=[time[0], time[-1], offsets[0] - 0.5, offsets[-1] + 0.5],
+                       cmap='viridis', vmin=0.0, vmax=1.0)
+        ax.set_title(title)
+        ax.set_xlabel('Time [s]')
+        return im
+
+    im = _imshow(axs[0], data.mean(axis=1), f'mean over heads (env {env_index})')
+    axs[0].set_ylabel('context offset (0 = current)')
+    for h in range(heads):
+        _imshow(axs[h + 1], data[:, h, :], f'head {h}')
+
+    fig.colorbar(im, ax=axs, shrink=0.8, label='attention weight')
+    plt.show()
 
 
 def _plot_velocity_tracking(log, dt, robot_index):
