@@ -1,6 +1,9 @@
 from legged_gym import LEGGED_GYM_ROOT_DIR
 import os
 import sys
+import glob
+import shutil
+import tempfile
 import argparse
 from collections import defaultdict
 
@@ -41,6 +44,10 @@ sys.argv = [sys.argv[0]] + _remaining
 
 
 def play(args):
+    # Viewer-based capture (matches play_off_policy.py) requires a display.
+    if _extra_args.record:
+        args.headless = False
+
     env_cfg, train_cfg = task_registry.get_cfgs(name=args.task)
     env_cfg.env.num_envs = min(env_cfg.env.num_envs, 50)
     env_cfg.terrain.num_rows = 5
@@ -59,8 +66,12 @@ def play(args):
     env, _ = task_registry.make_env(name=args.task, args=args, env_cfg=env_cfg)
     obs = env.get_observations()
 
-    if (_extra_args.cam_pos is not None or _extra_args.cam_lookat is not None) and not args.headless:
-        env.set_camera(env_cfg.viewer.pos, env_cfg.viewer.lookat)
+    if env.viewer is not None and (_extra_args.cam_pos is not None or _extra_args.cam_lookat is not None):
+        env.gym.viewer_camera_look_at(
+            env.viewer, None,
+            gymapi.Vec3(*env_cfg.viewer.pos),
+            gymapi.Vec3(*env_cfg.viewer.lookat),
+        )
 
     if _extra_args.cmd_seq is not None:
         raw = _extra_args.cmd_seq
@@ -116,24 +127,17 @@ def play(args):
     if _extra_args.log_attention:
         attn_block = actor_critic.memory_a.transformer.blocks[-1].sa
 
-    # Optional video recording via a static camera sensor attached to env 0.
-    record_cam = None
-    record_frames = []
-    record_width = record_height = 0
+    # Video recording reuses the viewer (write_viewer_image_to_file), matching play_off_policy.py.
+    frame_dir = None
+    frame_idx = 0
     record_limit = int(env.max_episode_length) if _extra_args.video_steps < 0 else _extra_args.video_steps
     if _extra_args.record:
-        cam_props = gymapi.CameraProperties()
-        cam_props.width = 1280
-        cam_props.height = 720
-        cam_props.enable_tensors = False
-        record_cam = env.gym.create_camera_sensor(env.envs[0], cam_props)
-        record_width, record_height = cam_props.width, cam_props.height
-        cam_pos = _extra_args.cam_pos if _extra_args.cam_pos is not None else env_cfg.viewer.pos
-        cam_lookat = _extra_args.cam_lookat if _extra_args.cam_lookat is not None else env_cfg.viewer.lookat
-        env.gym.set_camera_location(
-            record_cam, env.envs[0],
-            gymapi.Vec3(*cam_pos), gymapi.Vec3(*cam_lookat),
-        )
+        if env.viewer is None:
+            print("WARNING: viewer is None - cannot record. Re-run without --headless or with a display.")
+        else:
+            frame_dir = tempfile.mkdtemp(prefix="legged_frames_")
+            print(f"Recording frames to tmp dir: {frame_dir}")
+            print(f"Output video: {os.path.join(_extra_args.video_dir, _extra_args.video_name)}")
 
     for i in range(int(env.max_episode_length)):
         actions = policy(obs.detach())
@@ -157,12 +161,10 @@ def play(args):
             camera_position += camera_vel * env.dt
             env.set_camera(camera_position, camera_position + camera_direction)
 
-        if record_cam is not None and i < record_limit:
-            env.gym.step_graphics(env.sim)
-            env.gym.render_all_camera_sensors(env.sim)
-            img = env.gym.get_camera_image(env.sim, env.envs[0], record_cam, gymapi.IMAGE_COLOR)
-            img = np.frombuffer(img, dtype=np.uint8).reshape(record_height, record_width, 4)[..., :3]
-            record_frames.append(img)
+        if frame_dir is not None and env.viewer is not None and i < record_limit:
+            frame_path = os.path.join(frame_dir, f"frame_{frame_idx:06d}.png")
+            env.gym.write_viewer_image_to_file(env.viewer, frame_path)
+            frame_idx += 1
 
         if i < int(env.max_episode_length):
             vel_tracking_log['cmd_x'].append(env.commands[robot_index, 0].item())
@@ -215,15 +217,19 @@ def play(args):
     print(f"Total env-steps evaluated: {total_steps}")
     print(f"==========================================================\n")
 
-    if record_frames:
-        os.makedirs(_extra_args.video_dir, exist_ok=True)
-        out_path = os.path.join(_extra_args.video_dir, _extra_args.video_name)
+    if frame_dir is not None and frame_idx > 0:
         try:
             import imageio
-            imageio.mimsave(out_path, record_frames, fps=_extra_args.fps, macro_block_size=None)
-            print(f"[play_transformer] saved video: {out_path} ({len(record_frames)} frames)")
+            png_files = sorted(glob.glob(os.path.join(frame_dir, "frame_*.png")))
+            frames = [imageio.imread(p) for p in png_files]
+            os.makedirs(_extra_args.video_dir, exist_ok=True)
+            out_path = os.path.join(_extra_args.video_dir, _extra_args.video_name)
+            imageio.mimsave(out_path, frames, fps=_extra_args.fps, macro_block_size=None)
+            print(f"[play_transformer] saved video: {out_path} ({len(frames)} frames)")
         except ImportError:
             print("[play_transformer] imageio not installed. Install with: pip install imageio imageio-ffmpeg")
+        finally:
+            shutil.rmtree(frame_dir, ignore_errors=True)
 
     if attn_log:
         os.makedirs(_extra_args.video_dir, exist_ok=True)
@@ -262,7 +268,7 @@ def _plot_attention(attn_rows, dt, env_index, save_path=None):
         ax.set_xlabel('Time [s]')
         return im
 
-    im = _imshow(axs[0], data.mean(axis=1), f'mean over heads (env {env_index})')
+    im = _imshow(axs[0], data.mean(axis=1), f'mean over heads')
     axs[0].set_ylabel('context offset (0 = current)')
     for h in range(heads):
         _imshow(axs[h + 1], data[:, h, :], f'head {h}')
