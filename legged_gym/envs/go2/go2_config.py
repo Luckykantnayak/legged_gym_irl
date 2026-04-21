@@ -97,6 +97,39 @@ class GO2FlatCfgPPO( GO2RoughCfgPPO ):
         experiment_name = 'flat_go2'
 
 
+class GO2FlatCfgPPOHistory( GO2FlatCfgPPO ):
+    class policy( GO2FlatCfgPPO.policy ):
+        actor_hidden_dims = [128, 64, 32]
+        critic_hidden_dims = [128, 64, 32]
+        activation = 'elu'
+        # ActorCriticHistory params:
+        context_length = 8  # number of past observations fed to the MLP (1 = vanilla MLP)
+
+    class runner( GO2FlatCfgPPO.runner ):
+        policy_class_name = 'ActorCriticHistory'
+        run_name = ''
+        experiment_name = 'flat_go2_history'
+
+
+class GO2FlatCfgPPOTransformer( GO2FlatCfgPPO ):
+    class policy( GO2FlatCfgPPO.policy ):
+        # Shallow MLP head — the compact transformer already handles feature mixing,
+        # and total params are aligned with the vanilla PPO baseline.
+        actor_hidden_dims = [64, 32]
+        critic_hidden_dims = [64, 32]
+        activation = 'elu'
+        # ActorCriticTransformer params (compact: no FF inside blocks, no output head):
+        transformer_hidden_size = 48
+        transformer_block_count = 1
+        transformer_head_count = 2
+        transformer_context_length = 8   # rolling context carried across rollout steps
+
+    class runner( GO2FlatCfgPPO.runner ):
+        policy_class_name = 'ActorCriticTransformer'
+        run_name = ''
+        experiment_name = 'flat_go2_transformer'
+
+
 class GO2FlatCfgSAC( BaseConfig ):
     seed = 1
 

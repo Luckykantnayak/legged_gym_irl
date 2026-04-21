@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: Copyright (c) 2021 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: BSD-3-Clause
-# 
+#
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
 #
@@ -40,6 +40,14 @@ import torch
 import matplotlib.pyplot as plt
 from collections import defaultdict
 
+_parser = argparse.ArgumentParser(add_help=False)
+_parser.add_argument("--cmd_seed", type=int, default=None,
+                     help="Fix RNG seed before rollout so command resampling is identical across runs")
+_parser.add_argument("--cmd_seq", type=float, nargs="+", default=None,
+                     help="Hardcoded command sequence as flat list of floats (groups of 3: vx vy vyaw). "
+                          "E.g. --cmd_seq 0.5 0.0 0.0  1.0 0.0 0.5")
+_extra_args, _remaining = _parser.parse_known_args()
+sys.argv = [sys.argv[0]] + _remaining
 
 def play(args):
     env_cfg, train_cfg = task_registry.get_cfgs(name=args.task)
@@ -55,6 +63,29 @@ def play(args):
     # prepare environment
     env, _ = task_registry.make_env(name=args.task, args=args, env_cfg=env_cfg)
     obs = env.get_observations()
+
+    # fixed command sequence: cycle through user-supplied [vx, vy, vyaw] entries
+    if _extra_args.cmd_seq is not None:
+        raw = _extra_args.cmd_seq
+        assert len(raw) % 3 == 0, "--cmd_seq must have a multiple-of-3 number of values"
+        cmd_list = [[raw[i], raw[i+1], raw[i+2]] for i in range(0, len(raw), 3)]
+        _call_count = [0]
+
+        def _seq_resample(env_ids):
+            vx, vy, vyaw = cmd_list[_call_count[0] % len(cmd_list)]
+            env.commands[env_ids, 0] = vx
+            env.commands[env_ids, 1] = vy
+            env.commands[env_ids, 2] = vyaw
+            _call_count[0] += 1
+
+        env._resample_commands = _seq_resample
+        env._resample_commands(torch.arange(env.num_envs, device=env.device))
+    # fix command seed so resampling is identical across runs
+    elif _extra_args.cmd_seed is not None:
+        torch.manual_seed(_extra_args.cmd_seed)
+        np.random.seed(_extra_args.cmd_seed)
+        env._resample_commands(torch.arange(env.num_envs, device=env.device))
+
     # load policy
     train_cfg.runner.resume = True
     ppo_runner, train_cfg = task_registry.make_alg_runner(env=env, name=args.task, args=args, train_cfg=train_cfg)
