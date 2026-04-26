@@ -58,10 +58,10 @@ def main() -> None:
 
     root = Path(__file__).resolve().parent
     repo_root = root.parents[1]
-    random_csv = repo_root / "data/logs/flat_go2/Mar21_01-10-37_random/eval.csv"
-    sac_csv = repo_root / "data/logs/flat_go2_sac/Mar21_23-22-12_/eval.csv"
-    ppo_csv = repo_root / "data/logs/flat_go2/Mar21_19-24-54_ppo/eval.csv"
-    transformer_csv = repo_root / "data/logs/flat_go2_transformer/Apr13_12-58-53_/eval.csv"
+    random_csv = repo_root / "data/logs/flat_go2/Mar21_01-10-37_random/progress.csv"
+    sac_csv = repo_root / "data/logs/flat_go2_sac/Mar21_23-22-12_/progress.csv"
+    ppo_csv = repo_root / "data/logs/flat_go2/Mar21_19-24-54_ppo/progress.csv"
+    transformer_csv = repo_root / "data/logs/flat_go2_transformer/Apr13_12-58-53_/progress.csv"
 
     series = [
         ("PPO", ppo_csv, "C0"),
