@@ -84,7 +84,8 @@ def play(args):
             env.commands[env_ids, 0] = vx
             env.commands[env_ids, 1] = vy
             env.commands[env_ids, 2] = vyaw
-            _call_count[0] += 1
+            if len(env_ids) > 0:
+                _call_count[0] += 1
 
         env._resample_commands = _seq_resample
         env._resample_commands(torch.arange(env.num_envs, device=env.device))

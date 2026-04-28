@@ -68,7 +68,7 @@ def play(args):
     if _extra_args.cmd_seq is not None:
         raw = _extra_args.cmd_seq
         assert len(raw) % 3 == 0, "--cmd_seq must have a multiple-of-3 number of values"
-        cmd_list = [[raw[i], raw[i+1], raw[i+2]] for i in range(0, len(raw), 3)]
+        cmd_list = [[raw[i], raw[i + 1], raw[i + 2]] for i in range(0, len(raw), 3)]
         _call_count = [0]
 
         def _seq_resample(env_ids):
@@ -76,7 +76,8 @@ def play(args):
             env.commands[env_ids, 0] = vx
             env.commands[env_ids, 1] = vy
             env.commands[env_ids, 2] = vyaw
-            _call_count[0] += 1
+            if len(env_ids) > 0:
+                _call_count[0] += 1
 
         env._resample_commands = _seq_resample
         env._resample_commands(torch.arange(env.num_envs, device=env.device))
