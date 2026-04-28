@@ -79,15 +79,16 @@ def play(args):
         cmd_list = [[raw[i], raw[i + 1], raw[i + 2]] for i in range(0, len(raw), 3)]
         _call_count = [0]
 
-        def _seq_resample(env_ids):
+        def _seq_resample(env_ids, init=False):
             vx, vy, vyaw = cmd_list[_call_count[0] % len(cmd_list)]
             env.commands[env_ids, 0] = vx
             env.commands[env_ids, 1] = vy
             env.commands[env_ids, 2] = vyaw
-            _call_count[0] += 1
+            if len(env_ids) > 0 and not init:
+                _call_count[0] += 1
 
         env._resample_commands = _seq_resample
-        env._resample_commands(torch.arange(env.num_envs, device=env.device))
+        env._resample_commands(torch.arange(env.num_envs, device=env.device), init=True)
     elif _extra_args.cmd_seed is not None:
         torch.manual_seed(_extra_args.cmd_seed)
         np.random.seed(_extra_args.cmd_seed)
